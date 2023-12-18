@@ -31,7 +31,7 @@ for index_moment, moment in enumerate(moments):
     elementos_filtrados = []
     elem = {"order": 0, "moment": "", "categories_found": [], "transcript_found": "", "if_found": False, "mode": "ALL", "categories_found_id": []}
     elem['order'] = moment['order']
-    elem['moment'] = moment['moment']
+    elem['moment'] = normalize(moment['moment'])
     
     for index, e in enumerate(categories_found):
         current_category = f"{e['category']}-{e['subcategory']}"
@@ -67,6 +67,7 @@ for index_moment, moment in enumerate(moments):
         print(indexes_start, fragment_start, transcript.find(fragment_start))
         print(indexes_end,fragment_end, transcript.find(fragment_end), "\n", "="*10)
 
+        # modificar bien
         fragment_index_start = indexes_start[0]
         fragment_index_end = indexes_end[0]
         if moment["order"] == 1:
