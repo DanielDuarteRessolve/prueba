@@ -1,6 +1,7 @@
 import json, re 
 from unidecode import unidecode
 from operator import itemgetter
+import math
 
 
 
@@ -10,6 +11,7 @@ class Moments:
         self.categories_found = ""
         self.moments = ""
         self.transcript = ""
+        self.constante_penalizacion = 0.1
         self.main()
 
     def get_data(self):
@@ -48,20 +50,26 @@ class Moments:
             elem['categories'] = moment['categories']
             elem["is_mandatory"] = moment["is_mandatory"]
             elem["mode"] = moment["mode"]
+            elem["is_found"] = False
+            elem["moment_percentage"] = 1
+            elem['transcript_found'] = ""
+
             elementos_filtrados = [
                 e
                 for e in categories_found
                 if f"{e['category']}-{e['subcategory']}" in moment['categories']
             ]
 
-            categories_found = list(filter(lambda x: x not in elementos_filtrados, categories_found))
+            # categories_found = list(filter(lambda x: x not in elementos_filtrados, categories_found))
             elem['categories_found'] = [f"{i['category']}-{i['subcategory']}" for i in elementos_filtrados]
             elem['categories_found'] = [i for i in elementos_filtrados]
             elem['categories_found_id'] = [i["id"] for i in elementos_filtrados]
             elem['categories_found_id'].sort()
             elem['categories_found'] = sorted(elem['categories_found'], key=itemgetter('id')) 
 
-            elem['transcript_found'] = ""
+            if len(elem['categories_found']) == 0:
+                elem["is_found"] = False
+                elem["moment_percentage"] = 0
                 
             if moment['mode'] == 'ALL':
                 elem['mode'] = 'ALL'
@@ -87,6 +95,7 @@ class Moments:
                 
                 if id-prev_id<=value_mode_context:
                     context.append(id)
+
                 else:
                     context = []
                     context.append(id)
@@ -103,6 +112,37 @@ class Moments:
 
             # Actualizar la lista original
             current_moment["context_found"] = unique_contexts 
+        
+        moment_result = self.check_context_percentage(moment_result, value_mode_context)
+        return moment_result
+
+    def check_context_percentage(self, moment_result, value_mode_context):
+        for current_moment in moment_result:
+            # Prorcentaje en base al relevant_percentage
+            for context in current_moment["context_found"]:
+                context["revelant_percentage"] = 1
+                revelant_percentage_list = []
+                values_distance = 0
+                for index, id in enumerate(context["context"]):
+                    if index<len(context["context"])-1:
+                        next_id = context["context"][index+1]
+                    else:
+                        next_id = id
+                    distance = next_id-id
+                    print("distnace before: ", distance)
+                    if distance > 1:
+                        print("distnace", distance)
+                        values_distance += distance
+
+                    obj = next((element for element in current_moment["categories_found"] if element["id"] == id), None)
+                    revelant_percentage_list.append(obj["relevant_percentage"])
+
+                # Penalización por revelevant_percentage
+                percentage_mean = sum(revelant_percentage_list)/len(revelant_percentage_list)
+                context["revelant_percentage"] -= percentage_mean * self.constante_penalizacion
+                # Penalización por distancia entre categorías en un contexto
+                porcentaje_penalizado = context["revelant_percentage"] * math.exp(-self.constante_penalizacion * values_distance)
+                context["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
 
         return moment_result
 
@@ -184,6 +224,13 @@ class Moments:
                     if len(prev_moment["categories_found"]) == 0:
                         print("categories_found vacio")
                         print("no in moment prev: ", prev_moment["moment"])
+                        if prev_moment["order"] == 1:
+                            is_back = True
+                            print("es el primer momento")
+                            break
+                        if prev_moment["is_mandatory"]:
+                            porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * value_mode_moment)
+                            context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
                         continue
                     for category in backward_categories:
                         print("current category: ", category)
@@ -203,11 +250,13 @@ class Moments:
                     if len(next_moment["categories_found"]) == 0:
                         print("categories_found vacio")
                         print("no in moment next: ", next_moment["moment"])
-
                         if next_moment["order"] == moment_result[-1]["order"]:
                             is_foward = True
                             print("es el ultimo momento")
                             break
+                        if next_moment["is_mandatory"]:
+                            porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * value_mode_moment)
+                            context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
                         continue
                     for category in foward_categories:
                         print("current category: ", category)
@@ -217,14 +266,14 @@ class Moments:
                             break
                     if is_foward:
                         break
-                    else:
-                        if next_moment["is_mandatory"]:
-                            break
+                    # else:
+                    #     if next_moment["is_mandatory"]:
+                    #         break
                 print("¿LO ENCONTRÓ ADELANTE?: ", is_foward)
 
                 print("is_back: ", is_back)
                 print("is_foward: ", is_foward)
-                if (not is_back and not current_moment["order"] == 1) or (not is_foward and not current_moment["order"] == moment_result[-1]["order"]):
+                if (not is_back and not current_moment["order"] == 1) and (not is_foward and not current_moment["order"] == moment_result[-1]["order"]):
                     context_to_delete.append(context_obj["id"])
                     print("false moment")
                 else:
@@ -234,15 +283,45 @@ class Moments:
             
         return moment_result
 
+    def check_transcription(self, moment_result, transcript):
+
+        for moment in moment_result:
+            print("moment: ", moment["moment"])
+            if len(moment["categories_found"]) == 0:
+                continue
+            fragment_start = self.normalize(moment["categories_found"][0]['fragment_found'])
+            fragment_end = self.normalize(moment["categories_found"][-1]['fragment_found'])
+            print("fragment_start: ", fragment_start)
+            print("fragment_end: ", fragment_end)
+            indexes_start = [match.start() for match in re.finditer(fragment_start, transcript)]
+            indexes_end = [match.end() for match in re.finditer(fragment_end, transcript)]
+            print("indexes_start: ", indexes_start)
+            print("indexes_end: ", indexes_end)
+            fragment_index_start = indexes_start[0]
+            fragment_index_end = indexes_end[0]
+            print("fragment_index_start: ", fragment_index_start)
+            print("fragment_index_end: ", fragment_index_end)
+            if moment["order"] == 1:
+                fragment_index_start = 0
+            if moment["order"] == len(moment_result):
+                fragment_index_start = len(transcript)-1
+            moment["transcript_found"] = transcript[fragment_index_start:fragment_index_end]
+            print("transcript_found: ", moment["transcript_found"])
+        
+        return moment_result
+
     def main(self):
         try:
             self.get_data()
 
             result_map = self.map_moments(self.moments, self.categories_found)
+            self.write_data(result_map, "result_map.json")
             result_context = self.check_context(result_map, value_mode_context=3)
+            self.write_data(result_context, "result_context.json")
             result_moments = self.check_moments(result_context, self.moments, self.categories_found, value_mode_moment=3)
-            
             self.write_data(result_moments, "result_moments.json")
+            result_transcription = self.check_transcription(result_moments, self.transcript)
+            self.write_data(result_transcription, "result_transcription.json")
             self.write_data({"text": self.transcript}, "transcript_normalize.json")
         except Exception as e:
             print(e)
