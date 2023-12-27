@@ -1,0 +1,12 @@
+Elementos para penalizar:
+    - Momentos sin categorías encontradas -> 0          OK 20%
+    - relevant_percentage del categories_found          OK 15%
+    - Distancia entre elementos en un contexto          OK 10%
+    - is_mandatory de los momentos                      OK 5%
+    - el id type float de los momentos                  OK 
+    - Disntancia entre momentos                         OK
+
+
+Pendientes:
+    - Estructurar bien los porcentajes y jeraquías de Penalización
+    - ¿AL calificar debemos hacerlo con las categorias encontradas al inicio o con las categorías del contexto final?
