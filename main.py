@@ -109,13 +109,18 @@ class Moments:
         moment_result = self.check_context_percentage(moment_result, value_mode_context)
         return moment_result
 
+    def penalization(self, relevant_percentage, aditional_penalization):
+        porcentaje_penalizado = relevant_percentage * math.exp(-self.constante_penalizacion * aditional_penalization)
+        relevant_percentage_result = max(0, min(1, porcentaje_penalizado))
+        return relevant_percentage_result
+
     def check_context_percentage(self, moment_result, value_mode_context):
         for current_moment in moment_result:
             print("Momento: ", current_moment["moment"] + " - " + str(current_moment["order"]))
             for context in current_moment["context_found"]:
                 print("Contexto: ", context["context"])
-                context["revelant_percentage"] = 1
-                revelant_percentage_list = []
+                context["relevant_percentage"] = 1
+                relevant_percentage_list = []
                 values_distance = 0
                 for index, id in enumerate(context["context"]):
                     if index<len(context["context"])-1:
@@ -127,21 +132,20 @@ class Moments:
                         values_distance += distance
 
                     obj = next((element for element in current_moment["categories_found"] if element["id"] == id), None)
-                    revelant_percentage_list.append(obj["relevant_percentage"])
+                    relevant_percentage_list.append(obj["relevant_percentage"])
 
                 # Penalización por revelevant_percentage
-                print("penalizacion por revelant_percentage")
-                print("value before: ", context["revelant_percentage"])
-                percentage_mean = sum(revelant_percentage_list)/len(revelant_percentage_list)
-                context["revelant_percentage"] -= percentage_mean * self.constante_penalizacion
-                print("value after: ", context["revelant_percentage"])
+                print("penalizacion por relevant_percentage")
+                print("value before: ", context["relevant_percentage"])
+                percentage_mean = sum(relevant_percentage_list)/len(relevant_percentage_list)
+                context["relevant_percentage"] -= percentage_mean * self.constante_penalizacion
+                print("value after: ", context["relevant_percentage"])
                 # Penalización por distancia entre categorías en un contexto
                 print("penalizacion por distancia entre categorías en un contexto")
                 print("Distancia acumuladas: ", values_distance)
-                print("value before: ", context["revelant_percentage"])
-                porcentaje_penalizado = context["revelant_percentage"] * math.exp(-self.constante_penalizacion * values_distance)
-                context["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                print("value after: ", context["revelant_percentage"])
+                print("value before: ", context["relevant_percentage"])
+                context["relevant_percentage"] = self.penalization(context["relevant_percentage"], values_distance)
+                print("value after: ", context["relevant_percentage"])
 
         return moment_result
 
@@ -193,6 +197,7 @@ class Moments:
                 for prev_moment in previous_moments:
                     print("prev_moment: ", prev_moment["moment"]+"-",prev_moment["order"])
                     prev_moment_categories = prev_moment["categories"]
+                    distance = int(current_moment["order"]) - int(prev_moment["order"])
                     if len(prev_moment["categories_found"]) == 0:
                         print("categories_found vacio")
                         print("no in moment prev: ", prev_moment["moment"])
@@ -203,20 +208,18 @@ class Moments:
                         if prev_moment["is_mandatory"]:
                             # Penalización por is_mandatory
                             print("Penalización por is_mandatory")
-                            print("value before: ", context_obj["revelant_percentage"])
-                            porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * value_mode_moment)
-                            context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                            print("value after: " , context_obj["revelant_percentage"])
+                            print("value before 212: ", context_obj["relevant_percentage"])
+                            
+                            context_obj["relevant_percentage"] = self.penalization(context_obj["relevant_percentage"], value_mode_moment)
+                            print("value after: " , context_obj["relevant_percentage"])
                             # Penalización por distancia entre momentos y id decimal
-                            distance = int(current_moment["order"]) - int(prev_moment["order"])
                             print("distnace moments before: ", distance)
                             if distance > 1 and type(prev_moment["order"]) == int:
                                 print("Penalización por distancia entre momentos")
                                 print("distnace", distance)
-                                print("value before: ", context_obj["revelant_percentage"])
-                                porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * distance)
-                                context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                                print("value after: " , context_obj["revelant_percentage"])
+                                print("value before: ", context_obj["relevant_percentage"])
+                                context_obj["relevant_percentage"] = self.penalization(context_obj["relevant_percentage"], distance)
+                                print("value after: " , context_obj["relevant_percentage"])
                         continue
                     for category in backward_categories:
                         print("current category: ", category)
@@ -230,19 +233,17 @@ class Moments:
                         if prev_moment["is_mandatory"]:
                             # Penalización por is_mandatory
                             print("Penalización por is_mandatory")
-                            print("value before: ", context_obj["revelant_percentage"])
-                            porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * value_mode_moment)
-                            context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                            print("value after: " , context_obj["revelant_percentage"])
+                            print("value before 237: ", context_obj["relevant_percentage"])
+                            print("\n ------------****** contex_obj: ", context_obj)
+                            context_obj["relevant_percentage"] = self.penalization(context_obj["relevant_percentage"], value_mode_moment)
+                            print("value after: " , context_obj["relevant_percentage"])
                             # Penalización por distancia entre momentos y id decimal
-                            distance = int(current_moment["order"]) - int(prev_moment["order"])
                             if distance > 1 and type(prev_moment["order"]) == int:
                                 print("Penalización por distancia entre momentos")
                                 print("distnace", distance)
-                                print("value before: ", context_obj["revelant_percentage"])
-                                porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * distance)
-                                context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                                print("value after: " , context_obj["revelant_percentage"])
+                                print("value before: ", context_obj["relevant_percentage"])
+                                context_obj["relevant_percentage"] = self.penalization(context_obj["relevant_percentage"], distance)
+                                print("value after: " , context_obj["relevant_percentage"])
                             break
                 print("¿LO ENCONTRÓ ATRÁS?: ", is_back)
                 
@@ -261,19 +262,17 @@ class Moments:
                         if next_moment["is_mandatory"]:
                             # Penalización por is_mandatory
                             print("Penalización por is_mandatory")
-                            print("value before: ", context_obj["revelant_percentage"])
-                            porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * value_mode_moment)
-                            context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                            print("value after: " , context_obj["revelant_percentage"])
+                            print("value before: ", context_obj["relevant_percentage"])
+                            context_obj["relevant_percentage"] = self.penalization(context_obj["relevant_percentage"], value_mode_moment)
+                            print("value after: " , context_obj["relevant_percentage"])
                             # Penalización por distancia entre momentos y id decimal
                             distance = int(next_moment["order"]) - int(current_moment["order"])
                             if distance > 1 and type(next_moment["order"]) == int:
                                 print("Penalización por distancia entre momentos")
                                 print("distnace", distance)
-                                print("value before: ", context_obj["revelant_percentage"])
-                                porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * distance)
-                                context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                                print("value after: " , context_obj["revelant_percentage"])
+                                print("value before: ", context_obj["relevant_percentage"])
+                                context_obj["relevant_percentage"] = self.penalization(context_obj["relevant_percentage"], distance)
+                                print("value after: " , context_obj["relevant_percentage"])
                         continue
                     for category in foward_categories:
                         print("current category: ", category)
@@ -287,19 +286,17 @@ class Moments:
                         if next_moment["is_mandatory"]:
                             # Penalización por is_mandatory
                             print("Penalización por is_mandatory")
-                            print("value before: ", context_obj["revelant_percentage"])
-                            porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * value_mode_moment)
-                            context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                            print("value after: " , context_obj["revelant_percentage"])
+                            print("value before: ", context_obj["relevant_percentage"])
+                            context_obj["relevant_percentage"] = self.penalization(context_obj["relevant_percentage"], value_mode_moment)
+                            print("value after: " , context_obj["relevant_percentage"])
                             # Penalización por distancia entre momentos y id decimal
                             distance = int(next_moment["order"]) - int(current_moment["order"])
                             if distance > 1 and type(next_moment["order"]) == int:
                                 print("Penalización por distancia entre momentos")
                                 print("distnace", distance)
-                                print("value before: ", context_obj["revelant_percentage"])
-                                porcentaje_penalizado = context_obj["revelant_percentage"] * math.exp(-self.constante_penalizacion * distance)
-                                context_obj["revelant_percentage"] = max(0, min(1, porcentaje_penalizado))
-                                print("value after: " , context_obj["revelant_percentage"])
+                                print("value before: ", context_obj["relevant_percentage"])
+                                context_obj["relevant_percentage"] = self.penalization(context_obj["relevant_percentage"], distance)
+                                print("value after: " , context_obj["relevant_percentage"])
                             break
 
                 print("¿LO ENCONTRÓ ADELANTE?: ", is_foward)
@@ -313,7 +310,7 @@ class Moments:
                     print("true moment")
             print("context to delete: ", context_to_delete)
             # current_moment["context_found_filtered"] = [context for context in current_moment["context_found"] if context["id"] not in context_to_delete]
-            current_moment["context_found_filtered"] = max(current_moment["context_found"], key=lambda x: x["revelant_percentage"]) if len(current_moment["context_found"]) > 0 else {}
+            current_moment["context_found_filtered"] = max(current_moment["context_found"], key=lambda x: x["relevant_percentage"]) if len(current_moment["context_found"]) > 0 else {}
             
         return moment_result
 
@@ -380,13 +377,12 @@ class Moments:
                 "if_found": moment["if_found"],
                 "original_categories": moment["categories"],
                 "categories_found": unique_list_categories,
-                "credibility_percentage": moment["context_found_filtered"]["revelant_percentage"] if len(moment["context_found_filtered"]) > 0 else 0,
+                "credibility_percentage": moment["context_found_filtered"]["relevant_percentage"] if len(moment["context_found_filtered"]) > 0 else 0,
                 "transcript_found": moment["transcript_found"]
             })
         
         return moment_final_result
-
-            
+        
     def main(self):
         try:
             self.get_data()
@@ -400,7 +396,9 @@ class Moments:
 
             self.write_data(result_data, "result.json")
             self.write_data({"text": self.transcript}, "transcript_normalize.json")
+            print("---SUCCESS---")
         except Exception as e:
+            print("FAIL")
             print(e)
 
 Moments()
