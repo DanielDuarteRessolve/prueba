@@ -8,20 +8,14 @@ import math
 class Moments:
     
     def __init__(self) -> None:
-        self.categories_found = ""
-        self.moments = ""
-        self.transcript = ""
         self.constante_penalizacion = 0.1
         self.main()
 
-    def get_data(self):
-        # Lee el archivo JSON
-        with open('resources/categories_found.json') as json_file:
-            self.categories_found = json.load(json_file)
-        with open('resources/moments.json') as json_file:
-            self.moments = json.load(json_file)
-        with open('resources/transcript.json') as json_file:
-            self.transcript = self.normalize(json.load(json_file)['text'])
+    def get_data_total(self):
+        with open("resources/data.json") as data:
+            info_data = json.load(data)
+        
+        return info_data
     
     def write_data(self, data, name_file):
         with open('resources/'+str(name_file), 'w') as json_file:
@@ -106,6 +100,7 @@ class Moments:
             # Actualizar la lista original
             current_moment["context_found"] = unique_contexts 
         
+        # Penalizaciones para el contexto
         moment_result = self.check_context_percentage(moment_result, value_mode_context)
         return moment_result
 
@@ -385,17 +380,22 @@ class Moments:
         
     def main(self):
         try:
-            self.get_data()
+            audio_data = self.get_data_total()
+            result_total_data = []
+            for audio in audio_data:
+                transcript = audio["transcript"]
+                moments_config = audio["moments_config"]
+                categories_found = audio["categories_found"]
 
-            result_map = self.map_moments(self.moments, self.categories_found)
-            result_context = self.check_context(result_map, value_mode_context=3)
-            result_moments = self.check_moments(result_context, self.moments, self.categories_found, value_mode_moment=3)
-            result_transcription = self.check_transcription(result_moments, self.transcript)
-            result_qualify = self.qualify(result_transcription)
-            result_data = self.result_data(result_qualify)
+                result_map = self.map_moments(moments_config, categories_found)
+                result_context = self.check_context(result_map, value_mode_context=3)
+                result_moments = self.check_moments(result_context, moments_config, categories_found, value_mode_moment=3)
+                result_transcription = self.check_transcription(result_moments, transcript)
+                result_qualify = self.qualify(result_transcription)
+                result_data = self.result_data(result_qualify)
+                result_total_data.append({"nlp_input_detail_id": audio["id"],"result":result_data})
 
-            self.write_data(result_data, "result.json")
-            self.write_data({"text": self.transcript}, "transcript_normalize.json")
+            self.write_data(result_total_data, "result.json")
             print("---SUCCESS---")
         except Exception as e:
             print("FAIL")
